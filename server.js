@@ -6,12 +6,15 @@ const multer = require('multer');
 const cors = require('cors');
 
 const app = express();
-// Replace your old app.use(cors()) with this:
 app.use(cors({
-    origin: "*",
-    methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type"]
+    origin: "*", 
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
 }));
+
+// Add this right below it to handle "Preflight" requests
+app.options('*', cors());
+
 app.use(express.json());
 
 // --- 1. HARDCODED MONGODB STRING ---
