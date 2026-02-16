@@ -11,7 +11,7 @@ app.use(express.json());
 
 // --- 1. HARDCODED MONGODB STRING ---
 // Replace YOUR_ACTUAL_PASSWORD with your real password!
-const MONGO_URI = "mongodb+srv://fhfh-backend:YOUR_ACTUAL_PASSWORD@cluster0.kmrytlf.mongodb.net/fhfh_app?retryWrites=true&w=majority&appName=Cluster0";
+const MONGO_URI = "mongodb+srv://fhfh-backend:1234yasse@cluster0.kmrytlf.mongodb.net/fhfh_app?retryWrites=true&w=majority&appName=Cluster0";
 
 mongoose.connect(MONGO_URI)
     .then(() => console.log("FhFh Database: Hard-Linked Success"))
