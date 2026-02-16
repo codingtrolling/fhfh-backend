@@ -1,72 +1,66 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
+const mongoose = require('mongoose');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
 const cors = require('cors');
+require('dotenv').config();
 
 const app = express();
+
+// --- CONFIG ---
 app.use(cors());
 app.use(express.json());
 
-// --- 1. STORAGE CONFIG ---
-const storage = multer.diskStorage({
-    destination: './public/videos/',
-    filename: (req, file, cb) => cb(null, `fhfh-${Date.now()}${path.extname(file.originalname)}`)
+// --- MONGODB CONNECTION ---
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("FhFh DB Connected"))
+  .catch(err => console.error("DB Connection Failed", err));
+
+const videoSchema = new mongoose.Schema({
+    user: String,
+    caption: String,
+    videoUrl: String,
+    likes: { type: Number, default: 0 },
+    avatar: String,
+    createdAt: { type: Date, default: Date.now }
+});
+const Video = mongoose.model('Video', videoSchema);
+
+// --- CLOUDINARY CONFIG ---
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_NAME,
+    api_key: process.env.CLOUDINARY_KEY,
+    api_secret: process.env.CLOUDINARY_SECRET
+});
+
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: { folder: 'fhfh_main', resource_type: 'video' }
 });
 const upload = multer({ storage });
 
-// --- 2. MOCK DATABASE ---
-let videoFeed = [
-    { id: 1, user: '@troll_coder', likes: 1200, caption: 'Tool 11 is live!', src: 'demo1.mp4' },
-    { id: 2, user: '@gh_mod', likes: 5000, caption: 'POV: Empty block list', src: 'demo2.mp4' }
-];
-
-// --- 3. STREAMING ENGINE (Range Header Support) ---
-app.get('/video/:filename', (req, res) => {
-    const videoPath = path.join(__dirname, 'public/videos', req.params.filename);
-    const videoSize = fs.statSync(videoPath).size;
-    const range = req.headers.range;
-
-    if (range) {
-        const parts = range.replace(/bytes=/, "").split("-");
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : videoSize - 1;
-        const chunksize = (end - start) + 1;
-        const file = fs.createReadStream(videoPath, {start, end});
-        const head = {
-            'Content-Range': `bytes ${start}-${end}/${videoSize}`,
-            'Accept-Ranges': 'bytes',
-            'Content-Length': chunksize,
-            'Content-Type': 'video/mp4',
-        };
-        res.writeHead(206, head);
-        file.pipe(res);
-    } else {
-        const head = {
-            'Content-Length': videoSize,
-            'Content-Type': 'video/mp4',
-        };
-        res.writeHead(200, head);
-        fs.createReadStream(videoPath).pipe(res);
-    }
+// --- ROUTES ---
+app.get('/api/feed', async (req, res) => {
+    try {
+        const videos = await Video.find().sort({ createdAt: -1 });
+        res.json(videos);
+    } catch (e) { res.status(500).send(e); }
 });
 
-// --- 4. API ENDPOINTS ---
-app.get('/api/feed', (req, res) => {
-    res.json(videoFeed);
+app.post('/api/upload', upload.single('video'), async (req, res) => {
+    const newVideo = new Video({
+        user: req.body.user || "@user" + Math.floor(Math.random()*100),
+        caption: req.body.caption || "FhFh Tool 11",
+        videoUrl: req.file.path,
+        avatar: `https://i.pravatar.cc/150?u=${Math.random()}`
+    });
+    await newVideo.save();
+    res.json(newVideo);
 });
 
-app.post('/api/upload', upload.single('video'), (req, res) => {
-    const newVideo = {
-        id: videoFeed.length + 1,
-        user: req.body.user || '@anonymous',
-        likes: 0,
-        caption: req.body.caption,
-        src: req.file.filename
-    };
-    videoFeed.unshift(newVideo);
-    res.status(201).json(newVideo);
+// --- LISTEN ---
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server is running on port ${PORT}`);
 });
-
-app.listen(3000, () => console.log('FhFh Server running on port 3000'));
-
